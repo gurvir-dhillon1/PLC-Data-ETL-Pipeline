@@ -2,6 +2,7 @@ import os
 import time
 import random
 import json
+from threading import Thread
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
@@ -40,10 +41,24 @@ class SensorDataProducer:
             time.sleep(self.interval_ms / 1000)
         self.producer.flush()
 
-if __name__ == "__main__":
+def generate_producer(machines, sensors, interval_ms):
     producer = SensorDataProducer(
-        machines=['M1', 'M2', 'M3'],
-        sensors=['temperature', 'pressure', 'vibration'],
-        interval_ms=500
+        machines=machines,
+        sensors=sensors,
+        interval_ms=interval_ms
     )
-    producer.send(num_readings=20)
+    producer.send()
+
+if __name__ == "__main__":
+    machines=['M1', 'M2', 'M3']
+    sensors=['temperature', 'pressure', 'vibration']
+    interval_ms=500
+
+    threads = []
+    for i in range(4):
+        t = Thread(target=generate_producer, args=(machines,sensors,interval_ms))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
