@@ -1,12 +1,25 @@
+import os
 import time
 import random
 import json
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
 
 class SensorDataProducer:
     def __init__(self, machines, sensors, interval_ms=1000):
         self.machines = machines
         self.sensors = sensors
         self.interval_ms = interval_ms
+        while True:
+            try:
+                self.producer = KafkaProducer(
+                    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092"),   # initial broker(s) to discover the Kafka cluster
+                    value_serializer=lambda v: json.dumps(v).encode("utf-8")    # automatically converts data to JSON bytes
+                )
+                break
+            except KafkaError:
+                print("PRODUCER: trying to connect to broker again in 3 seconds...")
+                time.sleep(3)
 
     def generate_reading(self, interval=(0,100)):
         return {
@@ -16,15 +29,16 @@ class SensorDataProducer:
             "timestamp": time.time()
         }
 
-    def start(self, num_readings=None):
+    def send(self, num_readings=None):
         count = 0
         while True:
             data = self.generate_reading()
-            print(data)
+            self.producer.send("plc_data", value=data)
             count += 1
             if num_readings and count >= num_readings:
                 break
             time.sleep(self.interval_ms / 1000)
+        self.producer.flush()
 
 if __name__ == "__main__":
     producer = SensorDataProducer(
@@ -32,4 +46,4 @@ if __name__ == "__main__":
         sensors=['temperature', 'pressure', 'vibration'],
         interval_ms=500
     )
-    producer.start(num_readings=20)
+    producer.send(num_readings=20)
