@@ -2,8 +2,6 @@
 
 A prototype ETL pipeline for collecting, streaming, and consuming simulated PLC sensor data using **Kafka**.
 
----
-
 ## Overview
 1. **Producers** generate random sensor readings for multiple machines and send them to Kafka.  
 2. **Kafka** acts as a high-throughput message broker.  
