@@ -1,12 +1,16 @@
 import os
 import time
 import json
+from threading import Thread
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
+THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
+
 class SensorDataConsumer:
-    def __init__(self, topic="plc_data"):
+    def __init__(self, topic="plc_data", thread_id=0):
         self.topic = topic
+        self.thread_id = thread_id
         while True:
             try:
                 self.consumer = KafkaConsumer(
@@ -29,8 +33,19 @@ class SensorDataConsumer:
 
 
     def handle_message(self, msg):
-        print(f"received: {msg}")
+        print(f"THREAD {self.thread_id}: received: {msg}")
+
+def generate_consumer(thread_id):
+    consumer = SensorDataConsumer(thread_id=thread_id)
+    consumer.start_consuming()
 
 if __name__ == "__main__":
-    consumer = SensorDataConsumer()
-    consumer.start_consuming()
+    threads = []
+
+    for i in range(THREAD_COUNT):
+        t = Thread(target=generate_consumer, args=(i,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()

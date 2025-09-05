@@ -25,6 +25,8 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
+      THREAD_COUNT: 4
+      INTERVAL_MS: 100
   consumer:
     build: ./consumer
     container_name: consumer
@@ -32,3 +34,4 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
+      THREAD_COUNT: 4
