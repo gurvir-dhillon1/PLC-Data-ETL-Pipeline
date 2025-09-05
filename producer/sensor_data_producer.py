@@ -6,6 +6,9 @@ from threading import Thread
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
+THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
+INTERVAL_MS = int(os.getenv("INTERVAL_MS", 500))
+
 class SensorDataProducer:
     def __init__(self, machines, sensors, interval_ms=1000):
         self.machines = machines
@@ -52,11 +55,10 @@ def generate_producer(machines, sensors, interval_ms):
 if __name__ == "__main__":
     machines=['M1', 'M2', 'M3']
     sensors=['temperature', 'pressure', 'vibration']
-    interval_ms=500
 
     threads = []
-    for i in range(4):
-        t = Thread(target=generate_producer, args=(machines,sensors,interval_ms))
+    for i in range(THREAD_COUNT):
+        t = Thread(target=generate_producer, args=(machines,sensors,INTERVAL_MS))
         t.start()
         threads.append(t)
 
