@@ -8,6 +8,8 @@ from kafka.errors import KafkaError
 
 THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
 INTERVAL_MS = int(os.getenv("INTERVAL_MS", 500))
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", 16384))   # 16 KB
+LINGER_MS = int(os.getenv("LINGER_MS", 10))
 
 class SensorDataProducer:
     def __init__(self, machines, sensors, interval_ms=1000):
@@ -18,7 +20,9 @@ class SensorDataProducer:
             try:
                 self.producer = KafkaProducer(
                     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092"),   # initial broker(s) to discover the Kafka cluster
-                    value_serializer=lambda v: json.dumps(v).encode("utf-8")    # automatically converts data to JSON bytes
+                    value_serializer=lambda v: json.dumps(v).encode("utf-8"),    # automatically converts data to JSON bytes
+                    batch_size=BATCH_SIZE,
+                    linger_ms=LINGER_MS
                 )
                 break
             except KafkaError:
@@ -50,7 +54,7 @@ def generate_producer(machines, sensors, interval_ms):
         sensors=sensors,
         interval_ms=interval_ms
     )
-    producer.send()
+    producer.send(1)
 
 if __name__ == "__main__":
     machines=['M1', 'M2', 'M3']
