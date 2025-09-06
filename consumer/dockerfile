@@ -1,5 +1,5 @@
 FROM python:3.11-slim
 WORKDIR /app
 COPY sensor_data_consumer.py .
-RUN pip install kafka-python
+RUN pip install kafka-python psycopg2-binary
 CMD ["python3", "-u", "sensor_data_consumer.py"]
