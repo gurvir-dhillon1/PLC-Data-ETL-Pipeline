@@ -55,6 +55,14 @@ class SensorDataConsumer:
 
     def handle_message(self, msg):
         print(f"THREAD {self.thread_id}: received: {msg}")
+        insert_query = """
+        INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp)
+        VALUES (%s, %s, %s, to_timestamp(%s))
+        """
+        self.cursor.execute(insert_query, (
+            msg["machine_id"], msg["sensor"], msg["reading"], msg["timestamp"]
+        ))
+        self.conn.commit()
 
 def generate_consumer(thread_id):
     consumer = SensorDataConsumer(thread_id=thread_id)
