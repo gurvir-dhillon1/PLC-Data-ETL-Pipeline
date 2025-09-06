@@ -27,6 +27,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
       THREAD_COUNT: 4
       INTERVAL_MS: 100
+      BATCH_SIZE: 16384
+      LINGER_MS: 10
   consumer:
     build: ./consumer
     container_name: consumer
@@ -46,6 +48,8 @@ services:
     #    target: /dev/shm
     #    tmpfs:
     #      size: 134217728 # 128*2^20 bytes = 128Mb
+    volumes:
+      - ./postgres/:/docker-entrypoint-initdb.d
     environment:
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: example
