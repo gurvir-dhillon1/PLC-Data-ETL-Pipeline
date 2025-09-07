@@ -14,7 +14,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_NUM_PARTITIONS: 2
     ports:
       - "9092:9092"
       - "9093:9093"
@@ -25,10 +25,11 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
-      THREAD_COUNT: 4
-      INTERVAL_MS: 100
+      THREAD_COUNT: 2
+      INTERVAL_MS: 500
       BATCH_SIZE: 16384
       LINGER_MS: 10
+      INDIVIDUAL_THREAD_MSGS: 51
   consumer:
     build: ./consumer
     container_name: consumer
@@ -36,7 +37,9 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
-      THREAD_COUNT: 4
+      THREAD_COUNT: 1
+      BATCH_SIZE: 500
+      BATCH_TIMEOUT: 1
   db:
     image: postgres
     restart: always
