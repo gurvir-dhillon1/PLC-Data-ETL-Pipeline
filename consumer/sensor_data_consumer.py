@@ -2,6 +2,8 @@ import os
 import time
 import json
 import psycopg2
+from psycopg2.extras import execute_values
+from datetime import datetime 
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
@@ -86,10 +88,15 @@ class SensorDataConsumer:
             return
         insert_query = """
         INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp, message_id, sequence)
-        VALUES (%s, %s, %s, to_timestamp(%s), %s, %s)
+        VALUES %s
         """
+        formatted_batch = [
+            (machine_id, sensor, reading, datetime.fromtimestamp(t_stamp), message_id, sequence)
+            for machine_id, sensor, reading, t_stamp, message_id, sequence in self.batch
+        ]
         try:
-            self.cursor.executemany(insert_query, self.batch)
+            # self.cursor.executemany(insert_query, self.batch)
+            execute_values(self.cursor, insert_query, formatted_batch)
             self.conn.commit()
             print(f"flushed {len(self.batch)} records to postgres at {time.time()}")
             self.total_msgs_flushed += len(self.batch)
