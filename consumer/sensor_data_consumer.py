@@ -2,11 +2,9 @@ import os
 import time
 import json
 import psycopg2
-from threading import Thread
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 
-THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
 POSTGRES_USER = os.getenv("POSTGRES_USER", "user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "example")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "plc_data")

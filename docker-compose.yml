@@ -37,7 +37,6 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
-      THREAD_COUNT: 1
       BATCH_SIZE: 500
       BATCH_TIMEOUT: 1
   db:
