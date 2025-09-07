@@ -29,7 +29,6 @@ class SensorDataConsumer:
                     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092"),
                     auto_offset_reset="earliest",
                     group_id="plc-data-group",
-                    consumer_timeout_ms=6000,
                     value_deserializer=lambda v: json.loads(v.decode("utf-8"))
                 )
                 print("successfully connected to broker")
@@ -56,15 +55,18 @@ class SensorDataConsumer:
     def start_consuming(self):
         print(f"listening for messages on topic {self.topic}...")
         try:
-            for msg in self.consumer:
-                self.handle_message(msg.value)
-
-                if len(self.batch) >= BATCH_SIZE or time.time() - self.last_flush >= BATCH_TIMEOUT:
-                    self.send_batch()
-                    print(f"TOTAL: {self.total_msgs_flushed}")
-                    self.consumer.commit()
+            while True:
+                msg_pack = self.consumer.poll(timeout_ms=1000)
+                if msg_pack:
+                    for tp, messages in msg_pack.items():
+                        for msg in messages:
+                            self.handle_message(msg.value)
+                    if self.batch and (len(self.batch) >= BATCH_SIZE or (time.time() - self.last_flush) >= BATCH_TIMEOUT):
+                        self.send_batch()
+                        print(f"TOTAL: {self.total_msgs_flushed}")
+                        self.consumer.commit()
         except Exception as e:
-            print("error in consumption loop: {e}")
+            print(f"error in consumption loop: {e}")
         finally:
             self.send_batch()
             self.consumer.commit()
