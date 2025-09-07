@@ -25,11 +25,11 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
-      THREAD_COUNT: 2
-      INTERVAL_MS: 500
+      THREAD_COUNT: 4
+      INTERVAL_MS: 10
       BATCH_SIZE: 16384
       LINGER_MS: 10
-      INDIVIDUAL_THREAD_MSGS: 51
+      INDIVIDUAL_THREAD_MSGS: 1000
   consumer:
     build: ./consumer
     container_name: consumer
