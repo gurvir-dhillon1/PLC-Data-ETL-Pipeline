@@ -16,9 +16,8 @@ BATCH_SIZE = int(os.getenv("BATCH_SIZE", 100))
 BATCH_TIMEOUT = float(os.getenv("BATCH_TIMEOUT", 2))
 
 class SensorDataConsumer:
-    def __init__(self, topic="plc_data", thread_id=0):
+    def __init__(self, topic="plc_data"):
         self.topic = topic
-        self.thread_id = thread_id
         self.batch = []
         self.last_flush = time.time()
         self.total_msgs_received = 0
@@ -35,10 +34,10 @@ class SensorDataConsumer:
                     consumer_timeout_ms=6000,
                     value_deserializer=lambda v: json.loads(v.decode("utf-8"))
                 )
-                print(f"THREAD {self.thread_id}: successfully connected to broker")
+                print("successfully connected to broker")
                 break
             except KafkaError:
-                print(f"THREAD {self.thread_id}: retrying in 3 seconds...")
+                print("retrying in 3 seconds...")
                 time.sleep(3)
         while True:
             try:
@@ -50,10 +49,10 @@ class SensorDataConsumer:
                     dbname=POSTGRES_DB
                 )
                 self.cursor = self.conn.cursor()
-                print(f"THREAD {self.thread_id}: successfully connected to postgres")
+                print("successfully connected to postgres")
                 break
             except psycopg2.OperationalError:
-                print(f"THREAD {self.thread_id}: retrying postgres connection in 3 seconds...")
+                print("retrying postgres connection in 3 seconds...")
                 time.sleep(3)
 
     def start_consuming(self):
@@ -67,7 +66,10 @@ class SensorDataConsumer:
                     print(f"TOTAL: {self.total_msgs_flushed}")
                     self.consumer.commit()
         except Exception as e:
-            print(f"THREAD {self.thread_id}: error in consumption loop: {e}")
+            print("error in consumption loop: {e}")
+        finally:
+            self.send_batch()
+            self.consumer.commit()
 
     def handle_message(self, msg):
         self.batch.append((
@@ -76,7 +78,6 @@ class SensorDataConsumer:
             msg["reading"],
             msg["timestamp"],
             msg["message_id"],
-            msg["thread_id"],
             msg["sequence"]
         ))
 
@@ -84,31 +85,20 @@ class SensorDataConsumer:
         if not self.batch:
             return
         insert_query = """
-        INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp, message_id, thread_id, sequence)
-        VALUES (%s, %s, %s, to_timestamp(%s), %s, %s, %s)
+        INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp, message_id, sequence)
+        VALUES (%s, %s, %s, to_timestamp(%s), %s, %s)
         """
         try:
             self.cursor.executemany(insert_query, self.batch)
             self.conn.commit()
-            print(f"THREAD {self.thread_id}: flushed {len(self.batch)} records to postgres at {time.time()}")
+            print(f"flushed {len(self.batch)} records to postgres at {time.time()}")
             self.total_msgs_flushed += len(self.batch)
         except Exception as e:
-            print(f"THREAD {self.thread_id}: ERROR inserting batch of {len(self.batch)}: {e}")
+            print(f"ERROR inserting batch of {len(self.batch)}: {e}")
             self.conn.rollback()
         self.batch.clear()
         self.last_flush = time.time()
 
-def generate_consumer(thread_id):
-    consumer = SensorDataConsumer(thread_id=thread_id)
-    consumer.start_consuming()
-
 if __name__ == "__main__":
-    threads = []
-
-    for i in range(THREAD_COUNT):
-        t = Thread(target=generate_consumer, args=(i,))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
+    consumer = SensorDataConsumer()
+    consumer.start_consuming()
