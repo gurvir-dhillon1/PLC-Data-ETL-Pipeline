@@ -10,6 +10,7 @@ THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
 INTERVAL_MS = int(os.getenv("INTERVAL_MS", 500))
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 16384))   # 16 KB
 LINGER_MS = int(os.getenv("LINGER_MS", 10))
+INDIVIDUAL_THREAD_MSGS = int(os.getenv("INDIVIDUAL_THREAD_MSGS", 20))
 
 class SensorDataProducer:
     def __init__(self, machines, sensors, interval_ms=1000):
@@ -22,8 +23,12 @@ class SensorDataProducer:
                     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092"),   # initial broker(s) to discover the Kafka cluster
                     value_serializer=lambda v: json.dumps(v).encode("utf-8"),    # automatically converts data to JSON bytes
                     batch_size=BATCH_SIZE,
-                    linger_ms=LINGER_MS
+                    linger_ms=LINGER_MS,
+                    enable_idempotence=True,
+                    acks="all",
+                    retries=5
                 )
+                print("PRODUCER: successfully connected to kafka cluster")
                 break
             except KafkaError:
                 print("PRODUCER: trying to connect to broker again in 3 seconds...")
@@ -37,34 +42,40 @@ class SensorDataProducer:
             "timestamp": time.time()
         }
 
-    def send(self, num_readings=None):
-        count = 0
-        while True:
+    def send(self, thread_id, num_readings=None):
+        for i in range(num_readings):
             data = self.generate_reading()
-            self.producer.send("plc_data", value=data)
-            count += 1
-            if num_readings and count >= num_readings:
-                break
-            time.sleep(self.interval_ms / 1000)
-        self.producer.flush()
+            data["message_id"] = f"thread_{thread_id}_msg_{i+1}"
+            data["thread_id"] = thread_id
+            data["sequence"] = i + 1
+            future = self.producer.send("plc_data", value=data)
+            try:
+                future.get(timeout=5)
+            except Exception as e:
+                print(f"THREAD {i}: send failed: {e}")
+            time.sleep(INTERVAL_MS / 1000)
+        print(f"THREAD {thread_id}: finished sending {num_readings} messages")
 
-def generate_producer(machines, sensors, interval_ms):
-    producer = SensorDataProducer(
-        machines=machines,
-        sensors=sensors,
-        interval_ms=interval_ms
-    )
-    producer.send(1)
+    def run(self):
+        threads = []
+        for i in range(THREAD_COUNT):
+            t = Thread(target=self.send, args=(i,INDIVIDUAL_THREAD_MSGS))
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+
+        self.producer.flush()
+        self.producer.close(timeout=10)
+        print(f"PRODUCER: ALL THREADS FINISHED")
+
 
 if __name__ == "__main__":
     machines=['M1', 'M2', 'M3']
     sensors=['temperature', 'pressure', 'vibration']
 
-    threads = []
-    for i in range(THREAD_COUNT):
-        t = Thread(target=generate_producer, args=(machines,sensors,INTERVAL_MS))
-        t.start()
-        threads.append(t)
-
-    for t in threads:
-        t.join()
+    producer = SensorDataProducer(
+        machines=machines,
+        sensors=sensors
+    )
+    producer.run()
