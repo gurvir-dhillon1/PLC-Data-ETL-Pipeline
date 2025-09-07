@@ -63,10 +63,10 @@ class SensorDataConsumer:
                     for tp, messages in msg_pack.items():
                         for msg in messages:
                             self.handle_message(msg.value)
-                    if self.batch and (len(self.batch) >= BATCH_SIZE or (time.time() - self.last_flush) >= BATCH_TIMEOUT):
-                        self.send_batch()
-                        print(f"TOTAL: {self.total_msgs_flushed}")
-                        self.consumer.commit()
+                if self.batch and (len(self.batch) >= BATCH_SIZE or (time.time() - self.last_flush) >= BATCH_TIMEOUT):
+                    self.send_batch()
+                    print(f"TOTAL: {self.total_msgs_flushed}")
+                    self.consumer.commit()
         except Exception as e:
             print(f"error in consumption loop: {e}")
         finally:
