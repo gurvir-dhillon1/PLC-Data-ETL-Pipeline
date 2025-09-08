@@ -6,7 +6,6 @@ from confluent_kafka import Producer
 from confluent_kafka.serialization import SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
-from confluent_kafka.schema_registry import Schema
 
 
 THREAD_COUNT = int(os.getenv("THREAD_COUNT", 4))
@@ -18,7 +17,7 @@ LINGER_MS = int(os.getenv("LINGER_MS", 10))
 
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL", "http://schema-registry:8081")
 KAFKA_URL = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092")
-KAFKA_TOPIC = "plc_data"
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "plc_data")
 SCHEMA_REGISTRY_SUBJECT = f"{KAFKA_TOPIC}_value"
 
 value_schema = """
