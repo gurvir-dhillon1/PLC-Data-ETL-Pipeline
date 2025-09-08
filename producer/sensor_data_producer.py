@@ -61,18 +61,26 @@ class SensorDataProducer:
     def send(self, thread_id, num_readings=None):
         for i in range(num_readings):
             data = self.generate_reading()
-            try:
-                serialized_value = self.avro_serializer(data, SerializationContext(KAFKA_TOPIC, MessageField.VALUE))
-                self.producer.produce(
-                    topic=KAFKA_TOPIC,
-                    value=serialized_value,
-                    callback=self.delivery_callback
-                )
-                self.producer.poll(0)
-            except Exception as e:
-                print(f"THREAD {i}: send failed: {e}")
+            counter = 0
+            while True:
+                try:
+                    serialized_value = self.avro_serializer(data, SerializationContext(KAFKA_TOPIC, MessageField.VALUE))
+                    self.producer.produce(
+                        topic=KAFKA_TOPIC,
+                        value=serialized_value,
+                        callback=self.delivery_callback
+                    )
+                    self.producer.poll(0)
+                    break
+                except Exception as e:
+                    print(f"THREAD {thread_id}: send failed (retrying in 1 second): {e}")
+                    if counter >= 30:
+                        print(f"THREAD {thread_id}: send failed after 10 tries: {e}")
+                        break
+                    counter += 1
+                    time.sleep(1)
             time.sleep(INTERVAL_MS / 1000)
-        print(f"THREAD {thread_id}: finished sending {num_readings} messages")
+        self.producer.flush()
     
     def delivery_callback(self, err, msg):
         """callback for message delivery reports"""
@@ -95,7 +103,6 @@ class SensorDataProducer:
 
 
 if __name__ == "__main__":
-    time.sleep(20)
     machines=['M1', 'M2', 'M3']
     sensors=['temperature', 'pressure', 'vibration']
 

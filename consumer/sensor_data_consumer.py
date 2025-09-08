@@ -89,7 +89,7 @@ class SensorDataConsumer:
                     continue
                 if msg.error():
                     print(f"consumer error: {msg.error()}")
-                    break
+                    continue
 
                 try:
                     deserialized_value = self.avro_deserializer(
@@ -145,6 +145,5 @@ class SensorDataConsumer:
         self.last_flush = time.time()
 
 if __name__ == "__main__":
-    time.sleep(25)
     consumer = SensorDataConsumer(topic=KAFKA_TOPIC)
     consumer.start_consuming()
