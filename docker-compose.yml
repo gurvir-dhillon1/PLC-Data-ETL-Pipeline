@@ -45,6 +45,8 @@ services:
       LINGER_MS: 10
       INDIVIDUAL_THREAD_MSGS: 1000
       KAFKA_TOPIC: "plc_data"
+    volumes:
+      - ./schema:/app/schema
   consumer:
     build: ./consumer
     container_name: consumer
@@ -56,6 +58,8 @@ services:
       BATCH_TIMEOUT: 1
       SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       KAFKA_TOPIC: "plc_data"
+    volumes:
+      - ./schema:/app/schema
   db:
     image: postgres
     restart: always
