@@ -38,6 +38,7 @@ services:
       - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
+      SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       THREAD_COUNT: 4
       INTERVAL_MS: 10
       BATCH_SIZE: 16384
