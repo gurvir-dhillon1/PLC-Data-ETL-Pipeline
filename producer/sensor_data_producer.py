@@ -20,20 +20,6 @@ KAFKA_URL = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "plc_data")
 SCHEMA_REGISTRY_SUBJECT = f"{KAFKA_TOPIC}_value"
 
-value_schema = """
-{
-    "type": "record",
-    "name": "PLCData",
-    "namespace": "com.example.plc",
-    "fields": [
-        {"name": "machine_id", "type": "string"},
-        {"name": "sensor", "type": "string"},
-        {"name": "reading", "type": "double"},
-        {"name": "t_stamp", "type": "double"}
-    ]
-}
-"""
-
 class SensorDataProducer:
     def __init__(self, machines, sensors, interval_ms=1000):
         self.machines = machines
@@ -41,6 +27,8 @@ class SensorDataProducer:
         self.interval_ms = interval_ms
         while True:
             try:
+                with open("schema/schema.avsc") as f:
+                    value_schema = f.read()
                 schema_registry_client = SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
                 avro_serializer = AvroSerializer(
                     schema_registry_client,
