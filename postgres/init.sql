@@ -6,6 +6,4 @@ CREATE TABLE IF NOT EXISTS raw_data.sensor_data (
     sensor VARCHAR(50),
     reading DOUBLE PRECISION,
     t_stamp TIMESTAMP,
-    message_id VARCHAR(50),
-    sequence INTEGER
 );
