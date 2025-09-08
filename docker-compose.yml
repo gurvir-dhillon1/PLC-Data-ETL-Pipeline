@@ -1,44 +1,89 @@
 services:
   broker:
-    image: apache/kafka:latest
+    image: confluentinc/cp-server:latest
     container_name: broker
     environment:
+      # KRaft / single-node setup
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:9093
+      KAFKA_LISTENERS: PLAINTEXT://broker:9092,CONTROLLER://broker:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # General Kafka settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CLUSTER_LINK_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_CLUSTER_LINK_METADATA_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_DURABILITY_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 1
+      # Optional: reduce startup wait for faster testing
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_NUM_PARTITIONS: 2
+
+      CLUSTER_ID: gRtvdo_PT82swQX1xFKEuQ
     ports:
-      - "9092:9092"
-      - "9093:9093"
+      - "9092:9092"  # host -> container Kafka port
+      - "9093:9093"  # controller listener
+    #volumes:
+      #- ./kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--list", "--bootstrap-server", "broker:9092"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    container_name: schema-registry
+    depends_on:
+      broker:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "broker:9092"
+      SCHEMA_REGISTRY_LISTENERS: "http://0.0.0.0:8081"
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: "_schemas"
+      SCHEMA_REGISTRY_DEBUG: "true"
   producer:
     build: ./producer
     container_name: producer
-    depends_on:
-      - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
+      SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       THREAD_COUNT: 4
       INTERVAL_MS: 10
       BATCH_SIZE: 16384
       LINGER_MS: 10
-      INDIVIDUAL_THREAD_MSGS: 1000
+      INDIVIDUAL_THREAD_MSGS: 10
+      KAFKA_TOPIC: "plc_data"
+    volumes:
+      - ./schema:/app/schema
+    depends_on:
+      broker:
+        condition: service_healthy
   consumer:
     build: ./consumer
     container_name: consumer
-    depends_on:
-      - broker
     environment:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
       BATCH_SIZE: 500
       BATCH_TIMEOUT: 1
+      SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      KAFKA_TOPIC: "plc_data"
+    volumes:
+      - ./schema:/app/schema
+    depends_on:
+      broker:
+        condition: service_healthy
+
   db:
     image: postgres
     restart: always
