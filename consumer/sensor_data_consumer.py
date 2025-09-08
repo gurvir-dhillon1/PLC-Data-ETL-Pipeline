@@ -4,8 +4,10 @@ import json
 import psycopg2
 from psycopg2.extras import execute_values
 from datetime import datetime 
-from kafka import KafkaConsumer
-from kafka.errors import KafkaError
+from confluent_kafka import Consumer
+from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroDeserializer
 
 POSTGRES_USER = os.getenv("POSTGRES_USER", "user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "example")
@@ -15,6 +17,10 @@ POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE", 100))
 BATCH_TIMEOUT = float(os.getenv("BATCH_TIMEOUT", 2))
 
+SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL", "http://schema-registry:8081")
+KAFKA_URL = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092")
+KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "plc_data")
+
 class SensorDataConsumer:
     def __init__(self, topic="plc_data"):
         self.topic = topic
@@ -22,22 +28,38 @@ class SensorDataConsumer:
         self.last_flush = time.time()
         self.total_msgs_received = 0
         self.total_msgs_flushed = 0
-        
 
         while True:
             try:
-                self.consumer = KafkaConsumer(
-                    self.topic,
-                    bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "broker:9092"),
-                    auto_offset_reset="earliest",
-                    group_id="plc-data-group",
-                    value_deserializer=lambda v: json.loads(v.decode("utf-8"))
+                with open("schema/schema.avsc") as f:
+                    value_schema = f.read()
+                schema_registry_client = SchemaRegistryClient({"url": SCHEMA_REGISTRY_URL})
+
+                self.avro_deserializer = AvroDeserializer(
+                    schema_registry_client,
+                    value_schema
                 )
+                print("successfully connected to schema registry")
+                break
+            except Exception as e:
+                print(f"retrying connection to schema registry in 2 seconds... {e}")
+                time.sleep(2)
+        while True:
+            try:
+                consumer_config = {
+                    "bootstrap.servers": KAFKA_URL,
+                    "group.id": f"{KAFKA_TOPIC}_group",
+                    "auto.offset.reset": "earliest",
+                    "enable.auto.commit": False
+                }
+
+                self.consumer = Consumer(consumer_config)
+                self.consumer.subscribe([self.topic])
                 print("successfully connected to broker")
                 break
-            except KafkaError:
-                print("retrying in 3 seconds...")
-                time.sleep(3)
+            except Exception as e:
+                print(f"retrying kafka connection in 2 seconds... {e}")
+                time.sleep(2)
         while True:
             try:
                 self.conn = psycopg2.connect(
@@ -58,15 +80,33 @@ class SensorDataConsumer:
         print(f"listening for messages on topic {self.topic}...")
         try:
             while True:
-                msg_pack = self.consumer.poll(timeout_ms=1000)
-                if msg_pack:
-                    for tp, messages in msg_pack.items():
-                        for msg in messages:
-                            self.handle_message(msg.value)
+                msg = self.consumer.poll(timeout=1.0)
+                if msg is None:
+                    if self.batch and (len(self.batch) >= BATCH_SIZE or (time.time() - self.last_flush) >= BATCH_TIMEOUT):
+                        self.send_batch()
+                        print(f"TOTAL RECEIVED: {self.total_msgs_received}, TOTAL FLUSHED: {self.total_msgs_flushed}")
+                        self.consumer.commit()
+                    continue
+                if msg.error():
+                    print(f"consumer error: {msg.error()}")
+                    break
+
+                try:
+                    deserialized_value = self.avro_deserializer(
+                        msg.value(),
+                        SerializationContext(msg.topic(), MessageField.VALUE)
+                    )
+                    self.handle_message(deserialized_value)
+                    self.total_msgs_received += 1
+                except Exception as e:
+                    print(f"CONSUMER: failed to deserialize: {e}")
+
+                #TODO: duplicated code from line 85, turn into a function
                 if self.batch and (len(self.batch) >= BATCH_SIZE or (time.time() - self.last_flush) >= BATCH_TIMEOUT):
                     self.send_batch()
-                    print(f"TOTAL: {self.total_msgs_flushed}")
+                    print(f"TOTAL RECEIVED: {self.total_msgs_received}, TOTAL FLUSHED: {self.total_msgs_flushed}")
                     self.consumer.commit()
+
         except Exception as e:
             print(f"error in consumption loop: {e}")
         finally:
@@ -78,21 +118,19 @@ class SensorDataConsumer:
             msg["machine_id"],
             msg["sensor"],
             msg["reading"],
-            msg["timestamp"],
-            msg["message_id"],
-            msg["sequence"]
+            msg["t_stamp"],
         ))
 
     def send_batch(self):
         if not self.batch:
             return
         insert_query = """
-        INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp, message_id, sequence)
+        INSERT INTO raw_data.sensor_data(machine_id, sensor, reading, t_stamp)
         VALUES %s
         """
         formatted_batch = [
-            (machine_id, sensor, reading, datetime.fromtimestamp(t_stamp), message_id, sequence)
-            for machine_id, sensor, reading, t_stamp, message_id, sequence in self.batch
+            (machine_id, sensor, reading, datetime.fromtimestamp(t_stamp))
+            for machine_id, sensor, reading, t_stamp in self.batch
         ]
         try:
             # self.cursor.executemany(insert_query, self.batch)
@@ -107,5 +145,6 @@ class SensorDataConsumer:
         self.last_flush = time.time()
 
 if __name__ == "__main__":
-    consumer = SensorDataConsumer()
+    time.sleep(25)
+    consumer = SensorDataConsumer(topic=KAFKA_TOPIC)
     consumer.start_consuming()
