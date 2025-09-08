@@ -90,12 +90,12 @@ class SensorDataProducer:
         for t in threads:
             t.join()
 
-        self.producer.flush()
-        self.producer.close(timeout=10)
+        self.producer.flush(timeout=10)
         print(f"PRODUCER: ALL THREADS FINISHED")
 
 
 if __name__ == "__main__":
+    time.sleep(20)
     machines=['M1', 'M2', 'M3']
     sensors=['temperature', 'pressure', 'vibration']
 
