@@ -44,6 +44,7 @@ services:
       BATCH_SIZE: 16384
       LINGER_MS: 10
       INDIVIDUAL_THREAD_MSGS: 1000
+      KAFKA_TOPIC: "plc_data"
   consumer:
     build: ./consumer
     container_name: consumer
@@ -53,6 +54,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "broker:9092"
       BATCH_SIZE: 500
       BATCH_TIMEOUT: 1
+      SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      KAFKA_TOPIC: "plc_data"
   db:
     image: postgres
     restart: always
