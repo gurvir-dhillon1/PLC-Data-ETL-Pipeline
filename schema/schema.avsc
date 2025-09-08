@@ -1,0 +1,11 @@
+{
+    "type": "record",
+    "name": "PLCData",
+    "namespace": "com.example.plc",
+    "fields": [
+        {"name": "machine_id", "type": "string"},
+        {"name": "sensor", "type": "string"},
+        {"name": "reading", "type": "double"},
+        {"name": "t_stamp", "type": "double"}
+    ]
+}
