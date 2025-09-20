@@ -16,6 +16,9 @@ services:
       # Required for Confluent internal clients
       KAFKA_BOOTSTRAP_SERVERS: broker-1:9092,broker-2:9092,broker-3:9092
 
+      # Topic Creation
+      KAFKA_CREATE_TOPICS: "plc_data:3:3" # format: topic:partitions:replication-factor
+
       # General Kafka settings
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 3
@@ -25,7 +28,7 @@ services:
       KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 3
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 3
       # Optional: reduce startup wait for faster testing
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -67,7 +70,7 @@ services:
       KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 3
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 3
       # Optional: reduce startup wait for faster testing
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -110,7 +113,7 @@ services:
       KAFKA_CONFLUENT_TIER_METADATA_REPLICATION_FACTOR: 3
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
       KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 3
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_CONFLUENT_METRICS_REPORTER_TOPIC_REPLICAS: 3
       # Optional: reduce startup wait for faster testing
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
@@ -126,6 +129,27 @@ services:
       interval: 5s
       timeout: 10s
       retries: 10
+
+  topic_init:
+    image: confluentinc/cp-server:latest
+    container_name: topic_init
+    depends_on:
+      - broker-1
+      - broker-2
+      - broker-3
+    entrypoint: >
+      sh -c "
+        export KAFKA_TOPIC=plc_data
+        # wait until Kafka brokers are ready
+        until kafka-topics --bootstrap-server broker-1:9092 --list >/dev/null 2>&1; do
+          echo 'waiting on kafka...'
+          sleep 2
+        done
+        # create the topic
+        kafka-topics --create --topic $$KAFKA_TOPIC --partitions 3 --replication-factor 3 --if-not-exists --bootstrap-server broker-1:9092
+        echo 'topic $$KAFKA_TOPIC created'
+      "
+
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
